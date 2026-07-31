@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: ledger-api
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ledger}
+    username: ${SPRING_DATASOURCE_USERNAME:ledger}
+    password: ${SPRING_DATASOURCE_PASSWORD:ledger}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        order_updates: true
+        jdbc:
+          batch_size: 10
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+ledger:
+  jwt:
+    secret: ${LEDGER_JWT_SECRET:dev-only-insecure-secret-do-not-use-in-production-0123456789abcdef}
+    expiry-minutes: 60
+
+logging:
+  level:
+    org.hibernate.SQL: info
