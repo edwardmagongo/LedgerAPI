@@ -116,21 +116,6 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <configuration>
-          <!--
-            Pins the Docker Engine API version docker-java negotiates with.
-            Without this, Testcontainers fails to start on some Docker Desktop
-            versions whose daemon rejects sub-MinAPIVersion probe requests with
-            an empty/invalid response instead of a clean upgrade-required error,
-            which breaks docker-java's version auto-negotiation. 1.43 is safely
-            below any currently supported daemon's MinAPIVersion.
-          -->
-          <argLine>-Dapi.version=1.43</argLine>
-        </configuration>
-      </plugin>
     </plugins>
   </build>
 </project>
