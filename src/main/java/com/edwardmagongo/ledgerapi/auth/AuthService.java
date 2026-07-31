@@ -1,8 +1,11 @@
 package com.edwardmagongo.ledgerapi.auth;
 
+import com.edwardmagongo.ledgerapi.auth.dto.AuthResponse;
+import com.edwardmagongo.ledgerapi.auth.dto.LoginRequest;
 import com.edwardmagongo.ledgerapi.auth.dto.RegisterRequest;
 import com.edwardmagongo.ledgerapi.auth.dto.UserResponse;
 import com.edwardmagongo.ledgerapi.common.EmailAlreadyRegisteredException;
+import com.edwardmagongo.ledgerapi.common.InvalidCredentialsException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -40,5 +43,16 @@ public class AuthService {
             throw new EmailAlreadyRegisteredException(email);
         }
         return new UserResponse(user.getId(), user.getEmail(), user.getCreatedAt());
+    }
+
+    @Transactional(readOnly = true)
+    public AuthResponse login(LoginRequest request) {
+        String email = request.email().toLowerCase(Locale.ROOT);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(InvalidCredentialsException::new);
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            throw new InvalidCredentialsException();
+        }
+        return new AuthResponse(jwtService.generateToken(user), "Bearer", jwtService.expirySeconds());
     }
 }

@@ -1,5 +1,7 @@
 package com.edwardmagongo.ledgerapi.auth;
 
+import com.edwardmagongo.ledgerapi.auth.dto.AuthResponse;
+import com.edwardmagongo.ledgerapi.auth.dto.LoginRequest;
 import com.edwardmagongo.ledgerapi.auth.dto.RegisterRequest;
 import com.edwardmagongo.ledgerapi.auth.dto.UserResponse;
 import jakarta.validation.Valid;
@@ -23,5 +25,10 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
+    }
+
+    @PostMapping("/login")
+    public AuthResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
     }
 }
