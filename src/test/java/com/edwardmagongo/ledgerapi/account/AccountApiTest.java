@@ -3,6 +3,7 @@ package com.edwardmagongo.ledgerapi.account;
 import com.edwardmagongo.ledgerapi.auth.UserRepository;
 import com.edwardmagongo.ledgerapi.support.AbstractIntegrationTest;
 import com.edwardmagongo.ledgerapi.support.TestAuth;
+import com.edwardmagongo.ledgerapi.transaction.TransactionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,12 +23,18 @@ class AccountApiTest extends AbstractIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired AccountRepository accountRepository;
     @Autowired UserRepository userRepository;
+    @Autowired TransactionRepository transactionRepository;
     @Autowired ObjectMapper objectMapper;
 
     private String aliceToken;
 
     @BeforeEach
     void setUp() throws Exception {
+        // Delete transactions before accounts before users: a shared static Testcontainers
+        // Postgres instance (see AbstractIntegrationTest) persists data across test classes
+        // within the same JVM/Surefire fork, and transactions.account_id / accounts.owner_id
+        // are foreign keys, so a blanket wipe must respect that dependency order.
+        transactionRepository.deleteAll();
         accountRepository.deleteAll();
         userRepository.deleteAll();
         aliceToken = TestAuth.registerAndLogin(mockMvc, "alice@example.com", "s3cretpassword");
