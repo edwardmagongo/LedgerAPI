@@ -16,6 +16,12 @@ import java.util.Locale;
 @Service
 public class AuthService {
 
+    // Used to run a dummy BCrypt comparison when the email lookup finds no user, so the
+    // unknown-email path spends comparable time to the wrong-password path (which always
+    // performs a real passwordEncoder.matches call). Without this, response timing would leak
+    // whether an email is registered even though both paths throw the same exception.
+    private static final String DUMMY_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5L2t7cKQzHXTe8g5VLTaBfNwFbEwm";
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -48,8 +54,14 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         String email = request.email().toLowerCase(Locale.ROOT);
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(InvalidCredentialsException::new);
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            // Run a dummy comparison so this branch costs about as much as the wrong-password
+            // branch below, closing the timing side-channel between "unknown email" and
+            // "known email, wrong password" (see DUMMY_HASH javadoc above).
+            passwordEncoder.matches(request.password(), DUMMY_HASH);
+            throw new InvalidCredentialsException();
+        }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }

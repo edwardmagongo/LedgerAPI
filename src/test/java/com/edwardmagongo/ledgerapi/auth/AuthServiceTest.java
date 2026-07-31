@@ -1,8 +1,10 @@
 package com.edwardmagongo.ledgerapi.auth;
 
+import com.edwardmagongo.ledgerapi.auth.dto.LoginRequest;
 import com.edwardmagongo.ledgerapi.auth.dto.RegisterRequest;
 import com.edwardmagongo.ledgerapi.auth.dto.UserResponse;
 import com.edwardmagongo.ledgerapi.common.EmailAlreadyRegisteredException;
+import com.edwardmagongo.ledgerapi.common.InvalidCredentialsException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -11,6 +13,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -74,5 +78,15 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.register(new RegisterRequest("alice@example.com", "s3cretpassword")))
                 .isInstanceOf(EmailAlreadyRegisteredException.class);
+    }
+
+    @Test
+    void loginRunsPasswordComparisonForUnknownEmailToAvoidTimingSideChannel() {
+        when(userRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(new LoginRequest("ghost@example.com", "whatever")))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        verify(passwordEncoder).matches(any(), any());
     }
 }
