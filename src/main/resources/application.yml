@@ -6,6 +6,7 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:ledger}
     password: ${SPRING_DATASOURCE_PASSWORD:ledger}
     hikari:
+      # Sized to TransferConcurrencyTest's 20 threads so each can hold a connection concurrently rather than queuing (was worsening optimistic-lock retry collisions).
       maximum-pool-size: 20
   jpa:
     hibernate:
