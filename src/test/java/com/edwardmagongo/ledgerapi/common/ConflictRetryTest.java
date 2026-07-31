@@ -65,7 +65,7 @@ class ConflictRetryTest {
             throw new ObjectOptimisticLockingFailureException("Account", "id");
         })).isInstanceOf(WriteConflictException.class);
 
-        assertThat(calls.get()).isEqualTo(3);
+        assertThat(calls.get()).isEqualTo(7);
     }
 
     @Test

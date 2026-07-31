@@ -22,8 +22,9 @@ import java.util.function.Supplier;
 public class ConflictRetry {
 
     private static final Logger log = LoggerFactory.getLogger(ConflictRetry.class);
-    private static final int MAX_ATTEMPTS = 3;
-    private static final int BASE_BACKOFF_MILLIS = 20;
+    private static final int MAX_ATTEMPTS = 7;
+    private static final long BASE_BACKOFF_MILLIS = 25;
+    private static final long MAX_BACKOFF_MILLIS = 400;
 
     public <T> T execute(Supplier<T> operation) {
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -41,10 +42,14 @@ public class ConflictRetry {
         throw new IllegalStateException("unreachable");
     }
 
+    // Full jitter: sleep uniformly at random within [0, cap), where cap grows exponentially per
+    // attempt (capped at MAX_BACKOFF_MILLIS), so competing threads decorrelate far more effectively
+    // than a narrow fixed-width jitter band added on top of a fixed per-attempt floor.
     private void backoff(int attempt) {
-        long jitter = ThreadLocalRandom.current().nextLong(BASE_BACKOFF_MILLIS);
+        long cap = Math.min(MAX_BACKOFF_MILLIS, BASE_BACKOFF_MILLIS * (1L << attempt));
+        long sleepMillis = ThreadLocalRandom.current().nextLong(cap);
         try {
-            Thread.sleep((long) BASE_BACKOFF_MILLIS * attempt + jitter);
+            Thread.sleep(sleepMillis);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new WriteConflictException();

@@ -5,6 +5,8 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/ledger}
     username: ${SPRING_DATASOURCE_USERNAME:ledger}
     password: ${SPRING_DATASOURCE_PASSWORD:ledger}
+    hikari:
+      maximum-pool-size: 20
   jpa:
     hibernate:
       ddl-auto: validate

@@ -81,14 +81,14 @@ class TransferServiceTest {
     }
 
     @Test
-    void surfaces409AfterThreeFailedAttempts() {
+    void surfaces409AfterSevenFailedAttempts() {
         when(executor.executeOnce(userId, request))
                 .thenThrow(new ObjectOptimisticLockingFailureException("Account", "id"));
 
         assertThatThrownBy(() -> service().transfer(userId, request))
                 .isInstanceOf(WriteConflictException.class);
 
-        verify(executor, times(3)).executeOnce(eq(userId), any());
+        verify(executor, times(7)).executeOnce(eq(userId), any());
     }
 
     @Test

@@ -7,4 +7,5 @@ import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
     List<Transaction> findByTransferId(UUID transferId);
+    List<Transaction> findByAccountId(UUID accountId);
 }
