@@ -73,4 +73,19 @@ public class AccountService {
         }
         return account;
     }
+
+    /**
+     * Loads a transfer destination. Unlike {@link #requireOwned}, this performs no ownership
+     * check: money may be sent to an account belonging to another user. The account must exist
+     * and be active.
+     */
+    @Transactional(readOnly = true)
+    public Account requireActiveDestination(UUID accountId) {
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new AccountNotFoundException(accountId));
+        if (!account.isActive()) {
+            throw new AccountClosedException(accountId);
+        }
+        return account;
+    }
 }

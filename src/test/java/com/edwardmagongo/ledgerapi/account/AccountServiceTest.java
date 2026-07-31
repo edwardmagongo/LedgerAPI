@@ -114,4 +114,31 @@ class AccountServiceTest {
 
         assertThat(account.getBalance()).isEqualByComparingTo(BigDecimal.ZERO);
     }
+
+    @Test
+    void requireActiveDestinationAllowsAnotherUsersAccount() {
+        Account account = new Account(stranger, Currency.GBP);
+        when(accountRepository.findById(account.getId())).thenReturn(Optional.of(account));
+
+        assertThat(accountService.requireActiveDestination(account.getId())).isSameAs(account);
+    }
+
+    @Test
+    void requireActiveDestinationRejectsClosedAccount() {
+        Account account = new Account(stranger, Currency.GBP);
+        account.close();
+        when(accountRepository.findById(account.getId())).thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> accountService.requireActiveDestination(account.getId()))
+                .isInstanceOf(AccountClosedException.class);
+    }
+
+    @Test
+    void requireActiveDestinationRejectsMissingAccount() {
+        UUID missing = UUID.randomUUID();
+        when(accountRepository.findById(missing)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> accountService.requireActiveDestination(missing))
+                .isInstanceOf(AccountNotFoundException.class);
+    }
 }
