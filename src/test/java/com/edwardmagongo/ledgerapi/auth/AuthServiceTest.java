@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,5 +63,16 @@ class AuthServiceTest {
                 .isInstanceOf(EmailAlreadyRegisteredException.class);
 
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void registerTranslatesConcurrentDuplicateEmailToConflict() {
+        when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("hash");
+        when(userRepository.save(any(User.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"));
+
+        assertThatThrownBy(() -> authService.register(new RegisterRequest("alice@example.com", "s3cretpassword")))
+                .isInstanceOf(EmailAlreadyRegisteredException.class);
     }
 }
