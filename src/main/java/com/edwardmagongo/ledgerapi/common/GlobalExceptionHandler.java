@@ -53,6 +53,7 @@ public class GlobalExceptionHandler {
         // registrations for the same email) and only surface at flush/commit, after any local
         // try/catch in the service method has already returned. Deliberately generic: parsing
         // the constraint name to report which field conflicted is fragile.
+        log.warn("Data integrity violation handling {} {}", request.getMethod(), request.getRequestURI(), ex);
         return build(HttpStatus.CONFLICT,
                 "The request could not be completed due to a conflicting record", request, null);
     }
@@ -64,6 +65,7 @@ public class GlobalExceptionHandler {
         // ConflictRetry (e.g. AccountService.close). Paths that do retry (transfer,
         // deposit/withdraw) already exhaust their attempts and throw WriteConflictException
         // before this would ever fire; reuse its message for a consistent 409 contract.
+        log.warn("Concurrency failure handling {} {}", request.getMethod(), request.getRequestURI(), ex);
         return build(HttpStatus.CONFLICT, new WriteConflictException().getMessage(), request, null);
     }
 
