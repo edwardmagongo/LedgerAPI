@@ -232,6 +232,32 @@ optimistic-lock retry collisions under test load.
 
 ## Deployment
 
-Not currently deployed. The multi-stage `Dockerfile` produces a runnable image on a JRE base as a
-non-root user, so deploying to AWS means pointing `SPRING_DATASOURCE_*` at an RDS instance and
-setting a real `LEDGER_JWT_SECRET`.
+Not currently deployed — but the infrastructure to deploy it is written, reviewed, and in
+[`infra/`](infra/).
+
+Terraform stands up an ECS Fargate service behind an Application Load Balancer, with RDS
+PostgreSQL 16 and secrets in SSM Parameter Store, in `eu-west-2`. GitHub Actions runs the test
+suite on every pull request and, on merge to `main`, builds the image, pushes it to ECR, and rolls
+the service forward — authenticating with GitHub OIDC, so no AWS keys are stored in the repository.
+
+```
+Internet → ALB :80 → ECS Fargate task (0.5 vCPU / 1 GB) → RDS Postgres (private, SG-restricted)
+```
+
+Design notes worth reading before the code:
+
+- **No NAT gateway.** Tasks run in public subnets with `assign_public_ip = true` for outbound
+  reachability, which saves the ~$35/month a NAT costs while idle. The database is isolated by
+  security group, not by subnet placement — it has no public IP and accepts traffic only from the
+  task security group.
+- **Terraform owns infrastructure; the pipeline owns the running image version.** The ECS service
+  sets `lifecycle { ignore_changes = [task_definition, desired_count] }`, so `terraform apply` cannot roll back a
+  deployment CI made.
+- **Single-AZ, one task, HTTP only.** Deliberate: this is sized to be stood up for a demo and torn
+  down in one command, not to be highly available. Multi-AZ RDS, an ACM certificate with an HTTPS
+  listener, and auto-scaling are each a small, well-defined addition.
+
+Roughly $55/month if left running continuously — see
+[`docs/superpowers/specs/2026-08-01-aws-deployment-design.md`](docs/superpowers/specs/2026-08-01-aws-deployment-design.md)
+for the cost breakdown and the reasoning behind each trade-off, and [`infra/README.md`](infra/README.md)
+for the bootstrap runbook.

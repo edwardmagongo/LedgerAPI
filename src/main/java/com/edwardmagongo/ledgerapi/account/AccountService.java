@@ -53,8 +53,17 @@ public class AccountService {
         account.close();
     }
 
-    /** Loads an account, failing if it does not exist or is not owned by the given user. */
-    @Transactional(readOnly = true)
+    /**
+     * Loads an account, failing if it does not exist or is not owned by the given user.
+     *
+     * <p>Deliberately not {@code readOnly}: this returns a <em>managed</em> entity that callers
+     * mutate (see {@link com.edwardmagongo.ledgerapi.transfer.TransferExecutor}). Marking it
+     * read-only would be silently wrong — called from outside an existing transaction it would
+     * start a read-only one, Hibernate would set {@code FlushMode.MANUAL}, and the caller's write
+     * would be discarded without an error. Callers that only read declare {@code readOnly}
+     * themselves; propagation is {@code REQUIRED}, so the outer setting wins.
+     */
+    @Transactional
     public Account requireOwned(UUID userId, UUID accountId) {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new AccountNotFoundException(accountId));
@@ -64,8 +73,8 @@ public class AccountService {
         return account;
     }
 
-    /** As {@link #requireOwned}, and additionally rejects closed accounts. */
-    @Transactional(readOnly = true)
+    /** As {@link #requireOwned} — including its non-{@code readOnly} rationale — and additionally rejects closed accounts. */
+    @Transactional
     public Account requireOwnedAndActive(UUID userId, UUID accountId) {
         Account account = requireOwned(userId, accountId);
         if (!account.isActive()) {
@@ -78,8 +87,11 @@ public class AccountService {
      * Loads a transfer destination. Unlike {@link #requireOwned}, this performs no ownership
      * check: money may be sent to an account belonging to another user. The account must exist
      * and be active.
+     *
+     * <p>Not {@code readOnly}, for the same reason as {@link #requireOwned}: the returned entity
+     * is credited by the caller.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public Account requireActiveDestination(UUID accountId) {
         Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new AccountNotFoundException(accountId));
