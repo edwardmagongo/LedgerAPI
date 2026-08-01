@@ -11,7 +11,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
@@ -69,16 +68,12 @@ class AuthServiceTest {
         verify(userRepository, never()).save(any());
     }
 
-    @Test
-    void registerTranslatesConcurrentDuplicateEmailToConflict() {
-        when(userRepository.existsByEmail("alice@example.com")).thenReturn(false);
-        when(passwordEncoder.encode(any())).thenReturn("hash");
-        when(userRepository.save(any(User.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"));
-
-        assertThatThrownBy(() -> authService.register(new RegisterRequest("alice@example.com", "s3cretpassword")))
-                .isInstanceOf(EmailAlreadyRegisteredException.class);
-    }
+    // The concurrent-duplicate-email race (a save() that violates the DB's unique constraint
+    // after the existsByEmail pre-check passes) is no longer translated inside AuthService: the
+    // violation surfaces at flush/commit, after this method has already returned, so it can't be
+    // caught here. It's covered by GlobalExceptionHandlerTest (unit) and
+    // RegistrationTest.rejectsConcurrentDuplicateEmailWith409 (integration, real Postgres flush
+    // timing) instead.
 
     @Test
     void loginRunsPasswordComparisonForUnknownEmailToAvoidTimingSideChannel() {
