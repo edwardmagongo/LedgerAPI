@@ -2,8 +2,10 @@ package com.edwardmagongo.ledgerapi.common;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.util.UUID;
 
@@ -83,6 +85,28 @@ class GlobalExceptionHandlerTest {
     void mapsInvalidCredentialsTo401() {
         assertThat(handler.handleApiException(new InvalidCredentialsException(), request)
                 .getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    void mapsDataIntegrityViolationTo409() {
+        ResponseEntity<ApiError> response = handler.handleDataIntegrityViolation(
+                new DataIntegrityViolationException("duplicate key value violates unique constraint"), request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(409);
+        assertThat(response.getBody().message())
+                .isEqualTo("The request could not be completed due to a conflicting record");
+    }
+
+    @Test
+    void mapsConcurrencyFailureTo409() {
+        ResponseEntity<ApiError> response = handler.handleConcurrencyFailure(
+                new ObjectOptimisticLockingFailureException(
+                        "com.edwardmagongo.ledgerapi.account.Account", UUID.randomUUID()),
+                request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(409);
+        assertThat(response.getBody().message())
+                .isEqualTo("The account was modified concurrently; please retry the request");
     }
 
     @Test
