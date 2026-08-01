@@ -12,4 +12,6 @@ target/
 *.tfstate
 *.tfstate.*
 *.tfvars
+*.tfvars.json
+!*.example.tfvars
 crash.log

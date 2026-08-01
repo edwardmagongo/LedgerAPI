@@ -251,7 +251,7 @@ Design notes worth reading before the code:
   security group, not by subnet placement — it has no public IP and accepts traffic only from the
   task security group.
 - **Terraform owns infrastructure; the pipeline owns the running image version.** The ECS service
-  sets `lifecycle { ignore_changes = [task_definition] }`, so `terraform apply` cannot roll back a
+  sets `lifecycle { ignore_changes = [task_definition, desired_count] }`, so `terraform apply` cannot roll back a
   deployment CI made.
 - **Single-AZ, one task, HTTP only.** Deliberate: this is sized to be stood up for a demo and torn
   down in one command, not to be highly available. Multi-AZ RDS, an ACM certificate with an HTTPS

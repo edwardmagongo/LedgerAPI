@@ -57,6 +57,7 @@ jobs:
         run: |
           aws ecs describe-task-definition \
             --task-definition "$TASK_FAMILY" \
+            --include TAGS \
             --query taskDefinition > task-definition.json
 
       - name: Render the new image into it

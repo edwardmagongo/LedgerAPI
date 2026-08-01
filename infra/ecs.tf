@@ -75,6 +75,14 @@ resource "aws_ecs_task_definition" "app" {
   execution_role_arn       = aws_iam_role.task_execution.arn
   task_role_arn            = aws_iam_role.task.arn
 
+  # Stated explicitly rather than left to the provider default: the bootstrap
+  # image is force-built for linux/amd64 (see infra/README.md), so the task
+  # definition must match or Fargate cannot pull it.
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
   container_definitions = jsonencode([
     {
       name      = var.project_name
@@ -160,6 +168,16 @@ resource "aws_ecs_service" "app" {
   health_check_grace_period_seconds = 120
 
   depends_on = [aws_lb_listener.http]
+
+  # There is no on-call or alerting for this project, so an automatic rollback
+  # is the only recovery mechanism if a deploy ships a task that can't reach a
+  # steady state (bad image, OOM, migration failure) — without this, ECS
+  # retries indefinitely and the deploy just hangs until the GitHub Actions
+  # waiter times out, leaving the service degraded.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 
   # CI registers a new task definition revision on every merge to main. Without
   # this, the next `terraform apply` would notice the drift and roll the

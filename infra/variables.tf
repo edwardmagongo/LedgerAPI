@@ -75,3 +75,9 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "create_github_oidc_provider" {
+  description = "Whether to create the GitHub OIDC provider. Set to false and import the existing one if this AWS account already federates GitHub Actions for another repository — the provider is a global singleton per URL."
+  type        = bool
+  default     = true
+}

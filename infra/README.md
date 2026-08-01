@@ -33,9 +33,13 @@ terraform apply -target=aws_ecr_repository.ledger_api
 REPO=$(terraform output -raw ecr_repository_url 2>/dev/null \
   || aws ecr describe-repositories --repository-names ledger-api \
        --region eu-west-2 --query 'repositories[0].repositoryUri' --output text)
+[ -n "$REPO" ] || { echo "could not resolve ECR repository URL" >&2; exit 1; }
 
 aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin "$REPO"
-docker build -t "$REPO:bootstrap" ..
+# Fargate is pinned to X86_64 (see runtime_platform in infra/ecs.tf), so force
+# the build platform explicitly — on Apple Silicon a plain `docker build`
+# produces an arm64 image that ECS cannot pull.
+docker build --platform linux/amd64 -t "$REPO:bootstrap" ..
 docker push "$REPO:bootstrap"
 
 # Phase 3 — create everything else, now that a pullable image exists
@@ -73,6 +77,20 @@ The OIDC trust policy is scoped to one repository, set by `var.github_repository
 repository is not `edwardmagongo/LedgerAPI`, override that variable or the deploy job will fail to
 assume the role.
 
+## If GitHub OIDC is already set up in this account
+
+`aws_iam_openid_connect_provider.github` is a global singleton per URL — an AWS account can only
+have one provider for `https://token.actions.githubusercontent.com`. If any other repository in
+this account has already federated GitHub Actions, `terraform apply` fails with
+`EntityAlreadyExists`. The fix is to reuse the existing provider instead of creating a new one:
+
+```bash
+terraform apply -var="create_github_oidc_provider=false"
+```
+
+With that flag, Terraform looks up the existing provider via a data source rather than trying to
+create it.
+
 ## Who owns what
 
 Terraform owns the infrastructure. **The pipeline owns which image version is running.** The ECS
@@ -89,6 +107,15 @@ This is a one-command teardown by design: the database sets `deletion_protection
 `skip_final_snapshot = true`, and the ECR repository sets `force_delete = true`. All three are the
 opposite of what a production environment should do, and are deliberate choices for an environment
 meant to be created and destroyed around a demo.
+
+**Caveat:** the ECR lifecycle policy expires whichever images fall outside the 10 most recent,
+regardless of tag. After roughly 10 CI deploys, the original `:bootstrap` tag will have aged out.
+That's harmless as long as the service keeps running — Terraform ignores the running task
+definition (see "Who owns what" above) — but if the ECS service is ever replaced (for example, a
+`terraform destroy` followed by a fresh apply, or a change that forces the service to be
+recreated), phase 3 would try to pull `:bootstrap` again and fail if it no longer exists. If that
+happens, re-run phase 2 to rebuild and push `:bootstrap` before the apply that (re)creates the
+service.
 
 ## Verifying without an AWS account
 

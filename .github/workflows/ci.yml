@@ -4,6 +4,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Build and test
@@ -23,3 +26,30 @@ jobs:
       # integration and concurrency tests run unmodified.
       - name: Run tests
         run: ./mvnw -B test
+
+  terraform-validate:
+    name: Terraform fmt and validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # fmt -check and validate only inspect the configuration's own syntax
+      # and internal consistency, so no AWS credentials are needed here.
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # A concrete version satisfying infra/main.tf's `required_version = ">= 1.9"`.
+          terraform_version: "1.9.8"
+
+      - name: terraform fmt -check
+        working-directory: infra
+        run: terraform fmt -check
+
+      - name: terraform init
+        working-directory: infra
+        run: terraform init -backend=false
+
+      - name: terraform validate
+        working-directory: infra
+        run: terraform validate

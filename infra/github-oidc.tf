@@ -1,10 +1,28 @@
+# The provider is an account-global singleton per URL: only one can exist for
+# https://token.actions.githubusercontent.com in a given AWS account. If some
+# other repository in this account already set up GitHub OIDC, creating a
+# second one fails with EntityAlreadyExists — set
+# var.create_github_oidc_provider = false to reuse the existing one instead
+# (see infra/README.md).
 resource "aws_iam_openid_connect_provider" "github" {
+  count = var.create_github_oidc_provider ? 1 : 0
+
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
 
   # AWS no longer validates thumbprints for this well-known issuer, but the
   # API still accepts the value and older tooling expects it to be present.
   thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+}
+
+data "aws_iam_openid_connect_provider" "existing" {
+  count = var.create_github_oidc_provider ? 0 : 1
+
+  url = "https://token.actions.githubusercontent.com"
+}
+
+locals {
+  github_oidc_provider_arn = var.create_github_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.existing[0].arn
 }
 
 # The sub condition is what stops any other repository — or a branch other
@@ -16,7 +34,7 @@ data "aws_iam_policy_document" "github_assume" {
 
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [local.github_oidc_provider_arn]
     }
 
     condition {
