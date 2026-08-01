@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -55,20 +54,12 @@ public class TransferExecutor {
             throw new InsufficientFundsException();
         }
 
-        // Mutate in a deterministic order so concurrent transfers in opposite directions take
-        // their row locks in the same sequence. hibernate.order_updates=true additionally sorts
-        // the flush-time UPDATE statements by primary key, which is what actually fixes the
-        // statement order sent to Postgres.
-        List<Account> ordered = List.of(source, destination).stream()
-                .sorted(Comparator.comparing(Account::getId))
-                .toList();
-        for (Account account : ordered) {
-            if (account.getId().equals(source.getId())) {
-                account.debit(amount);
-            } else {
-                account.credit(amount);
-            }
-        }
+        // Setter-call order here has no bearing on lock order: hibernate.order_updates=true is
+        // what sorts the flush-time UPDATE statements by primary key, giving concurrent A->B and
+        // B->A transfers a deterministic statement order and avoiding a Postgres deadlock
+        // (40P01). See application.yml and README.md "Deadlocks".
+        source.debit(amount);
+        destination.credit(amount);
 
         UUID transferId = UUID.randomUUID();
         transactionRepository.saveAll(List.of(

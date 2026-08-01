@@ -124,10 +124,11 @@ currency mismatch — propagate immediately, so a real `422` never gets retried 
 ### Deadlocks
 
 Optimistic locking removes the application-held lock but not Postgres's row locks at `UPDATE`
-time, so concurrent `A→B` and `B→A` transfers could still deadlock (`40P01`). Two mitigations:
-accounts are mutated in ascending UUID order, and `hibernate.order_updates=true` sorts flush-time
-`UPDATE` statements by primary key. Deadlocks that still occur are retried like any other write
-conflict.
+time, so concurrent `A→B` and `B→A` transfers could still deadlock (`40P01`). The mitigation is
+`hibernate.order_updates=true`, which sorts flush-time `UPDATE` statements by primary key —
+giving concurrent transfers in opposite directions a deterministic statement order regardless of
+the order application code mutates the entities in. Deadlocks that still occur are retried like
+any other write conflict.
 
 ### Defence in depth
 
