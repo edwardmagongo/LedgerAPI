@@ -2,6 +2,10 @@ package com.edwardmagongo.ledgerapi.transaction;
 
 import com.edwardmagongo.ledgerapi.account.AccountService;
 import com.edwardmagongo.ledgerapi.common.ConflictRetry;
+import com.edwardmagongo.ledgerapi.common.idempotency.IdempotencyService;
+import com.edwardmagongo.ledgerapi.common.idempotency.IdempotentOperation;
+import com.edwardmagongo.ledgerapi.common.idempotency.IdempotentOutcome;
+import com.edwardmagongo.ledgerapi.common.idempotency.RequestFingerprint;
 import com.edwardmagongo.ledgerapi.transaction.dto.AmountRequest;
 import com.edwardmagongo.ledgerapi.transaction.dto.PageResponse;
 import com.edwardmagongo.ledgerapi.transaction.dto.TransactionResponse;
@@ -28,13 +32,16 @@ public class TransactionService {
     private final ConflictRetry conflictRetry;
     private final AccountService accountService;
     private final TransactionRepository transactionRepository;
+    private final IdempotencyService idempotencyService;
 
     public TransactionService(TransactionExecutor executor, ConflictRetry conflictRetry,
-                              AccountService accountService, TransactionRepository transactionRepository) {
+                              AccountService accountService, TransactionRepository transactionRepository,
+                              IdempotencyService idempotencyService) {
         this.executor = executor;
         this.conflictRetry = conflictRetry;
         this.accountService = accountService;
         this.transactionRepository = transactionRepository;
+        this.idempotencyService = idempotencyService;
     }
 
     public TransactionResponse deposit(UUID userId, UUID accountId, AmountRequest request) {
@@ -43,6 +50,32 @@ public class TransactionService {
 
     public TransactionResponse withdraw(UUID userId, UUID accountId, AmountRequest request) {
         return conflictRetry.execute(() -> executor.withdraw(userId, accountId, request));
+    }
+
+    /**
+     * As {@link #deposit(UUID, UUID, AmountRequest)}, but replay-protected by an idempotency key.
+     *
+     * <p>Passes {@code executor::deposit} rather than this class's own {@code deposit}, because
+     * {@link IdempotencyService} applies {@code ConflictRetry} itself and nesting two retry loops
+     * would multiply the attempt count.
+     */
+    public IdempotentOutcome<TransactionResponse> deposit(UUID userId, String idempotencyKey,
+                                                         UUID accountId, AmountRequest request) {
+        String fingerprint = RequestFingerprint.of(IdempotentOperation.DEPOSIT,
+                accountId.toString(), RequestFingerprint.amount(request.amount()));
+
+        return idempotencyService.execute(userId, idempotencyKey, IdempotentOperation.DEPOSIT,
+                fingerprint, () -> executor.deposit(userId, accountId, request));
+    }
+
+    /** As {@link #withdraw(UUID, UUID, AmountRequest)}, but replay-protected by an idempotency key. */
+    public IdempotentOutcome<TransactionResponse> withdraw(UUID userId, String idempotencyKey,
+                                                          UUID accountId, AmountRequest request) {
+        String fingerprint = RequestFingerprint.of(IdempotentOperation.WITHDRAWAL,
+                accountId.toString(), RequestFingerprint.amount(request.amount()));
+
+        return idempotencyService.execute(userId, idempotencyKey, IdempotentOperation.WITHDRAWAL,
+                fingerprint, () -> executor.withdraw(userId, accountId, request));
     }
 
     @Transactional(readOnly = true)
