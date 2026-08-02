@@ -147,6 +147,8 @@ contention on a single hot account, pessimistic locking would be the better choi
 
 ## Tests
 
+145 automated tests, 0 failures, 0 errors:
+
 ```bash
 ./mvnw test
 ```
