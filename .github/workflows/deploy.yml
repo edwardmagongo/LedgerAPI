@@ -1,8 +1,10 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch: {}
+  # Disabled automatic push trigger until AWS deploy infra is set up.
+  # push:
+  #   branches: [main]
 
 # Two deploys racing each other would fight over the service's task
 # definition, so serialize them.
