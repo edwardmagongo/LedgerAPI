@@ -3,6 +3,7 @@ package com.edwardmagongo.ledgerapi.transfer;
 import com.edwardmagongo.ledgerapi.common.ConflictRetry;
 import com.edwardmagongo.ledgerapi.common.InsufficientFundsException;
 import com.edwardmagongo.ledgerapi.common.WriteConflictException;
+import com.edwardmagongo.ledgerapi.common.idempotency.IdempotencyService;
 import com.edwardmagongo.ledgerapi.transfer.dto.TransferRequest;
 import com.edwardmagongo.ledgerapi.transfer.dto.TransferResponse;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.when;
 class TransferServiceTest {
 
     @Mock TransferExecutor executor;
+    @Mock IdempotencyService idempotencyService;
 
     // The real ConflictRetry is used, not a mock: the retry behaviour is exactly what is under test.
     private final ConflictRetry conflictRetry = new ConflictRetry();
@@ -37,7 +39,7 @@ class TransferServiceTest {
             new TransferRequest(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("10.00"));
 
     private TransferService service() {
-        return new TransferService(executor, conflictRetry);
+        return new TransferService(executor, conflictRetry, idempotencyService);
     }
 
     private TransferResponse anyResponse() {
