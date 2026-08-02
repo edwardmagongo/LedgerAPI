@@ -180,9 +180,9 @@ Full interactive docs at `/swagger-ui.html`.
 | `POST` | `/api/accounts` | Open an account |
 | `GET` | `/api/accounts/{id}` | Must own |
 | `DELETE` | `/api/accounts/{id}` | Soft close; balance must be zero |
-| `POST` | `/api/accounts/{id}/deposit` | Must own |
-| `POST` | `/api/accounts/{id}/withdraw` | Must own; `422` if it would go negative |
-| `POST` | `/api/transfers` | Must own the **source**; destination may be another user's |
+| `POST` | `/api/accounts/{id}/deposit` | Must own; optional `Idempotency-Key` |
+| `POST` | `/api/accounts/{id}/withdraw` | Must own; `422` if it would go negative; optional `Idempotency-Key` |
+| `POST` | `/api/transfers` | Must own the **source**; destination may be another user's; optional `Idempotency-Key` |
 | `GET` | `/api/accounts/{id}/transactions` | Paginated, filter by `from`/`to`/`type` |
 
 Errors share one shape:
@@ -206,16 +206,49 @@ Errors share one shape:
 | `409` | Closed account, closing a non-empty account, or write conflict after retries |
 | `422` | Insufficient funds |
 
+## Idempotency
+
+The three endpoints that move money accept an optional header:
+
+```
+Idempotency-Key: <any string, 1–255 chars>
+```
+
+Send the same key again and the original response is replayed verbatim instead of the money moving a
+second time — which is what a client needs when a request times out and it cannot tell whether the
+transfer happened.
+
+| Situation | Result |
+|---|---|
+| No header | Unchanged behaviour; two identical requests move money twice |
+| First use of a key | Runs normally; the response is recorded against the key |
+| Same key, same request, already completed | The stored response, replayed byte-for-byte |
+| Same key, **different** request | `409` — the key is already used with different parameters |
+| Same key, first request still in flight | `409` — retry shortly |
+| First attempt failed a business rule | The key is released and can be reused |
+
+Keys are namespaced per user, so two callers can pick the same string without colliding.
+
+How it works, and why the transaction boundaries matter, is in
+[`docs/superpowers/specs/2026-08-01-transfer-idempotency-design.md`](docs/superpowers/specs/2026-08-01-transfer-idempotency-design.md).
+The short version: the claim row commits in its own transaction so a concurrent duplicate can see
+it, and the money movement and the stored response commit *together*, so there is no window in
+which money moved but the key does not know it.
+
+Not built: automatic key expiry, and reconciliation of claims stranded by a process crash between
+the two commits. That failure mode is safe — the money does not move — but the caller cannot learn
+the outcome through that key.
+
 ## Design decisions and limits
 
 - **Money** is `NUMERIC(19,4)`; request amounts are validated to at most 2 decimal places. Because
   inputs are constrained to the stored scale, no rounding mode exists anywhere in the money path.
 - **Currencies** are a closed enum (`GBP`, `USD`, `EUR`). Cross-currency transfers are rejected —
   there is no FX.
-- **Deliberately out of scope:** idempotency keys on transfers. In production, a client retrying a
-  timed-out transfer needs a key so the server returns the original result rather than moving the
-  money twice. It is omitted to keep the project finishable, not because it was overlooked.
-- Also out of scope: refresh tokens, overdrafts, and event-sourced double-entry accounting.
+- **Idempotency keys** are implemented on all three money-moving endpoints — see
+  [Idempotency](#idempotency). Automatic key expiry is not.
+- Out of scope: refresh tokens, login rate limiting, overdrafts, and event-sourced double-entry
+  accounting.
 
 ## Configuration
 

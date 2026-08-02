@@ -34,4 +34,19 @@ class OpenApiDocsTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.bearerFormat").value("JWT"));
     }
+
+    @Test
+    void theIdempotencyKeyHeaderIsDocumentedOnEveryMoneyMovingEndpoint() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                        "$.paths['/api/transfers'].post.parameters[?(@.name=='Idempotency-Key')]")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/accounts/{accountId}/deposit'].post.parameters[?(@.name=='Idempotency-Key')]")
+                        .exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/accounts/{accountId}/withdraw'].post.parameters[?(@.name=='Idempotency-Key')]")
+                        .exists());
+    }
 }
