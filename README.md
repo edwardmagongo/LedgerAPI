@@ -229,11 +229,9 @@ transfer happened.
 
 Keys are namespaced per user, so two callers can pick the same string without colliding.
 
-How it works, and why the transaction boundaries matter, is in
-[`docs/superpowers/specs/2026-08-01-transfer-idempotency-design.md`](docs/superpowers/specs/2026-08-01-transfer-idempotency-design.md).
-The short version: the claim row commits in its own transaction so a concurrent duplicate can see
-it, and the money movement and the stored response commit *together*, so there is no window in
-which money moved but the key does not know it.
+Why the transaction boundaries matter: the claim row commits in its own transaction so a concurrent
+duplicate can see it, and the money movement and the stored response commit *together*, so there is
+no window in which money moved but the key does not know it.
 
 Not built: automatic key expiry, and reconciliation of claims stranded by a process crash between
 the two commits. That failure mode is safe — the money does not move — but the caller cannot learn
@@ -290,7 +288,5 @@ Design notes worth reading before the code:
   down in one command, not to be highly available. Multi-AZ RDS, an ACM certificate with an HTTPS
   listener, and auto-scaling are each a small, well-defined addition.
 
-Roughly $55/month if left running continuously — see
-[`docs/superpowers/specs/2026-08-01-aws-deployment-design.md`](docs/superpowers/specs/2026-08-01-aws-deployment-design.md)
-for the cost breakdown and the reasoning behind each trade-off, and [`infra/README.md`](infra/README.md)
-for the bootstrap runbook.
+Roughly $55/month if left running continuously — see [`infra/README.md`](infra/README.md) for the
+bootstrap runbook.

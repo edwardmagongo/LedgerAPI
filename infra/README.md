@@ -2,8 +2,8 @@
 
 Terraform for running LedgerAPI on ECS Fargate with RDS Postgres behind an ALB, in `eu-west-2`.
 
-See `../docs/superpowers/specs/2026-08-01-aws-deployment-design.md` for why the architecture looks
-the way it does — particularly the no-NAT trade-off and the Terraform/CI ownership boundary.
+Single-AZ, one Fargate task, no NAT gateway — the ECS task talks to the ECR/CloudWatch/SSM VPC
+endpoints directly, and Terraform owns everything except the image push, which the CI pipeline does.
 
 **Nothing here has ever been applied.** It is written to be correct and reviewable; standing it up
 against a real account is the exercise below.
