@@ -170,6 +170,45 @@ contention on a single hot account, pessimistic locking would be the better choi
   would remove the row contention and they would pass whether or not the locking worked. They were
   verified to **fail** when `@Version` is removed.
 
+## Performance
+
+The concurrency tests prove correctness; this measures the cost of it. `scripts/loadtest.mjs`
+drives the running API directly (registers a user, opens two accounts, fires concurrent HTTP
+requests) at concurrency 20 — the same figure the Hikari pool is sized for — so the numbers below
+reflect the actual retry loop under real contention, not a synthetic estimate.
+
+```bash
+docker compose up -d postgres
+SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/ledger ./mvnw spring-boot:run &
+node scripts/loadtest.mjs
+```
+
+Measured on a developer laptop (not the AWS deployment, not production traffic) — three runs, one
+JVM, local Postgres:
+
+| Scenario | Concurrency | Throughput | p50 | p95 | p99 | Outcome |
+|---|---|---|---|---|---|---|
+| `GET /accounts/{id}` | 20 | ~3,700–4,100 req/s | ~3–5ms | ~12–14ms | ~30–42ms | read path, no contention |
+| `POST /withdraw` | 1 | ~500–900 req/s | ~1–1.7ms | ~1.7–3ms | ~2.8–7.4ms | no contention baseline |
+| `POST /withdraw`, same account | 20 | ~340–480 req/s | ~1–1.4ms | ~190–250ms | ~480–795ms | 99.25–100% succeed; rest `409` after 7 retries |
+| `POST /transfers`, same source | 20 | ~190–425 req/s | ~1.3–2.2ms | ~260–625ms | ~690–1,023ms | 97.25–99.25% succeed |
+
+The shape is the interesting part, not any single number: most requests land in low single-digit
+milliseconds — only the ones that actually collide on the same row pay for a retry, and they pay
+with a long tail (the `p99` climbing into the hundreds of milliseconds) rather than a corrupted
+balance or a hung request. That tail is the full-jitter backoff working as designed: each retry
+waits before trying again rather than immediately re-colliding.
+
+Two additional checks the script runs on every pass:
+
+- **20 concurrent requests, one `Idempotency-Key`, one transfer.** Across three runs this resolved
+  to exactly one execution and the rest correctly rejected as in-flight or replayed — the
+  destination balance moved by exactly the transfer amount, never a multiple of it.
+- **Reconciliation.** After each run, the script re-fetches the full transaction history for both
+  accounts, recomputes the balance from scratch, and diffs it against the stored column. Across
+  ~1,000–1,400 transactions per run (including the deliberately-contended ones above), computed and
+  stored balances matched exactly every time.
+
 ## API
 
 Full interactive docs at `/swagger-ui.html`.
