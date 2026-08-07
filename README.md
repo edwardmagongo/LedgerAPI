@@ -1,15 +1,70 @@
 # LedgerAPI
 
+[![Deploy](https://github.com/edwardmagongo/LedgerAPI/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/edwardmagongo/LedgerAPI/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.3-6DB33F?logo=springboot&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-145%20passing-brightgreen)
+
 A banking ledger REST API in Spring Boot: accounts, deposits and withdrawals, and
 account-to-account transfers that are atomic and safe under concurrent load.
 
 The interesting part is not the CRUD — it is that concurrent transfers against the same account
 provably cannot corrupt a balance, and there are automated tests that fail if that stops being true.
 
+## Highlights
+
+- **Concurrency correctness, proven, not assumed.** Optimistic locking with a bounded, jittered
+  retry loop prevents lost updates on concurrent transfers — verified by tests that were confirmed
+  to **fail** when the locking is removed. See [Concurrency safety](#concurrency-safety).
+- **145 automated tests** — unit, Testcontainers-backed integration, and a dedicated concurrency
+  suite that hammers a single account with real thread contention, not mocked-away race conditions.
+- **Measured, not estimated, performance.** [`scripts/loadtest.mjs`](scripts/loadtest.mjs) drives
+  the live API and reports real throughput and latency under contention. See [Performance](#performance).
+- **Idempotency keys with request fingerprinting** on every money-moving endpoint, backed by a
+  database unique constraint — safe retries for a client that cannot tell whether a timed-out
+  request actually landed. See [Idempotency](#idempotency).
+- **Infrastructure as code, deployed for real.** Terraform provisions the full AWS stack (ECS
+  Fargate, RDS, ALB, IAM, OIDC federation); GitHub Actions tests, builds, and deploys on every push
+  to `main`, authenticating with zero long-lived AWS credentials. See [Deployment](#deployment).
+
+## Live Demo
+
+**[Try it in your browser →](http://ledger-api-alb-1715046521.eu-west-2.elb.amazonaws.com/swagger-ui.html)**
+(interactive Swagger UI against the live deployment — register a user, log in, and call the
+endpoints directly)
+
+![Swagger UI running against the live AWS deployment, listing every LedgerAPI endpoint grouped by controller](.github/assets/swagger-ui.png)
+
+Running on AWS ECS Fargate, provisioned entirely by the Terraform in [`infra/`](infra/) and shipped
+by the GitHub Actions pipeline in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) —
+details in [Deployment](#deployment).
+
+This is a portfolio demo, not a production service. If the link is down, the stack was torn down
+between reviews to control cost (`terraform destroy` is one command); `docker compose up --build`
+reproduces the identical API locally in under a minute.
+
+## Table of Contents
+
+- [Stack](#stack)
+- [Running it](#running-it)
+- [Trying it](#trying-it)
+- [Architecture](#architecture)
+- [Concurrency safety](#concurrency-safety)
+- [Tests](#tests)
+- [Performance](#performance)
+- [API](#api)
+- [Idempotency](#idempotency)
+- [Design decisions and limits](#design-decisions-and-limits)
+- [Configuration](#configuration)
+- [Deployment](#deployment)
+- [License](#license)
+
 ## Stack
 
 Java 21 · Spring Boot 3.5.3 · Spring Data JPA · Spring Security (JWT) · PostgreSQL 16 · Flyway ·
-JUnit 5 · Mockito · Testcontainers · springdoc-openapi · Docker
+JUnit 5 · Mockito · Testcontainers · springdoc-openapi · Docker · Terraform · AWS (ECS Fargate,
+RDS, ALB, IAM/OIDC) · GitHub Actions
 
 ## Running it
 
@@ -211,7 +266,7 @@ Two additional checks the script runs on every pass:
 
 ## API
 
-Full interactive docs at `/swagger-ui.html`.
+Full interactive docs at `/swagger-ui.html` — or try the [live deployment](#live-demo).
 
 | Method | Path | Notes |
 |---|---|---|
@@ -268,7 +323,11 @@ transfer happened.
 | Same key, first request still in flight | `409` — retry shortly |
 | First attempt failed a business rule | The key is released and can be reused |
 
-Keys are namespaced per user, so two callers can pick the same string without colliding.
+Keys are namespaced per user, so two callers can pick the same string without colliding. Reuse
+against a different request is caught by a SHA-256 fingerprint of the request's semantically
+meaningful fields (see [`RequestFingerprint`](src/main/java/com/edwardmagongo/ledgerapi/common/idempotency/RequestFingerprint.java)),
+not just the key string — and enforcement is backed by a `UNIQUE (user_id, idempotency_key)`
+database constraint, not an application-level check that a race could slip past.
 
 Why the transaction boundaries matter: the claim row commits in its own transaction so a concurrent
 duplicate can see it, and the money movement and the stored response commit *together*, so there is
@@ -304,17 +363,18 @@ optimistic-lock retry collisions under test load.
 
 ## Deployment
 
-Not currently deployed — but the infrastructure to deploy it is written, reviewed, and in
-[`infra/`](infra/).
-
-Terraform stands up an ECS Fargate service behind an Application Load Balancer, with RDS
-PostgreSQL 16 and secrets in SSM Parameter Store, in `eu-west-2`. GitHub Actions runs the test
-suite on every pull request and, on merge to `main`, builds the image, pushes it to ECR, and rolls
-the service forward — authenticating with GitHub OIDC, so no AWS keys are stored in the repository.
+**Live on AWS** — ECS Fargate behind an Application Load Balancer, RDS PostgreSQL 16, and secrets
+in SSM Parameter Store, in `eu-west-2`. See [Live Demo](#live-demo) to try it, or
+[`infra/`](infra/) for the Terraform.
 
 ```
 Internet → ALB :80 → ECS Fargate task (0.5 vCPU / 1 GB) → RDS Postgres (private, SG-restricted)
 ```
+
+GitHub Actions runs the test suite on every pull request and, on merge to `main`, builds the
+image, pushes it to ECR, and rolls the ECS service forward — authenticating with **GitHub OIDC**,
+so no AWS keys are stored in the repository or its secrets. A full run — test, build, push,
+health-checked rolling deploy — takes under 7 minutes end to end.
 
 Design notes worth reading before the code:
 
@@ -323,11 +383,21 @@ Design notes worth reading before the code:
   security group, not by subnet placement — it has no public IP and accepts traffic only from the
   task security group.
 - **Terraform owns infrastructure; the pipeline owns the running image version.** The ECS service
-  sets `lifecycle { ignore_changes = [task_definition, desired_count] }`, so `terraform apply` cannot roll back a
-  deployment CI made.
+  sets `lifecycle { ignore_changes = [task_definition, desired_count] }`, so `terraform apply`
+  cannot roll back a deployment CI made.
+- **GitHub's immutable OIDC subject claims.** Repositories created on or after 2026-07-15 embed
+  numeric owner/repo IDs in the federated token's `sub` claim (`owner@id/repo@id`) instead of the
+  mutable names, specifically to stop a renamed or recreated repo from inheriting another
+  identity's trust. The IAM trust policy in [`infra/github-oidc.tf`](infra/github-oidc.tf) matches
+  the ID form — diagnosed from the actual `AssumeRoleWithWebIdentity` denial in CloudTrail rather
+  than guessed from documentation.
 - **Single-AZ, one task, HTTP only.** Deliberate: this is sized to be stood up for a demo and torn
   down in one command, not to be highly available. Multi-AZ RDS, an ACM certificate with an HTTPS
   listener, and auto-scaling are each a small, well-defined addition.
 
-Roughly $55/month if left running continuously — see [`infra/README.md`](infra/README.md) for the
-bootstrap runbook.
+Roughly $55/month while running continuously — see [`infra/README.md`](infra/README.md) for the
+full bootstrap runbook, including the exact `terraform apply` / `terraform destroy` sequence.
+
+## License
+
+[MIT](LICENSE)
