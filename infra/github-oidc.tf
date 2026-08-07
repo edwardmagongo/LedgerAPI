@@ -28,6 +28,11 @@ locals {
 # The sub condition is what stops any other repository — or a branch other
 # than main in this one — from assuming the role. Without it, the OIDC trust
 # would accept tokens from all of GitHub.
+#
+# Repositories created on or after 2026-07-15 get immutable owner/repo IDs
+# baked into the sub claim (owner@id/repo@id) instead of the plain owner/repo
+# names, so matching on var.github_repository alone is not enough — see the
+# comment above var.github_owner_id in variables.tf.
 data "aws_iam_policy_document" "github_assume" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -46,7 +51,7 @@ data "aws_iam_policy_document" "github_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/main"]
+      values   = ["repo:${split("/", var.github_repository)[0]}@${var.github_owner_id}/${split("/", var.github_repository)[1]}@${var.github_repo_id}:ref:refs/heads/main"]
     }
   }
 }

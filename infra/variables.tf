@@ -70,6 +70,26 @@ variable "github_repository" {
   default     = "edwardmagongo/LedgerAPI"
 }
 
+# GitHub Actions OIDC tokens for repositories created on or after 2026-07-15 embed
+# these immutable numeric IDs in the `sub` claim instead of the mutable owner/repo
+# names (https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/),
+# so the trust policy in github-oidc.tf must match the ID form or every deploy
+# fails with "Not authorized to perform sts:AssumeRoleWithWebIdentity". Fetch
+# both with the GitHub CLI:
+#   gh api users/<owner> --jq .id
+#   gh api repos/<owner>/<repo> --jq .id
+variable "github_owner_id" {
+  description = "Numeric GitHub owner (user or org) ID for var.github_repository's owner."
+  type        = string
+  default     = "169843274"
+}
+
+variable "github_repo_id" {
+  description = "Numeric GitHub repository ID for var.github_repository."
+  type        = string
+  default     = "1319724379"
+}
+
 variable "log_retention_days" {
   description = "CloudWatch Logs retention for the ECS task's log group."
   type        = number
