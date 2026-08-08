@@ -1,0 +1,97 @@
+<svg viewBox="0 0 1080 640" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, 'SF Mono', Consolas, monospace">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+    <marker id="arrowAccent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2f7d3c"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1080" height="640" fill="#ffffff"/>
+
+  <text x="30" y="34" font-size="17" font-weight="600" fill="#111">LedgerAPI — request path and deployment</text>
+  <text x="30" y="54" font-size="12.5" fill="#666">Java 21 · Spring Boot · PostgreSQL — AWS ECS Fargate via Terraform</text>
+
+  <!-- Client -->
+  <rect x="30" y="120" width="120" height="52" rx="6" fill="#f7f7f7" stroke="#444" stroke-width="1.3"/>
+  <text x="90" y="150" font-size="13" fill="#111" text-anchor="middle">Client</text>
+
+  <!-- ALB -->
+  <rect x="200" y="120" width="140" height="52" rx="6" fill="#f7f7f7" stroke="#444" stroke-width="1.3"/>
+  <text x="270" y="143" font-size="12.5" fill="#111" text-anchor="middle">Application</text>
+  <text x="270" y="158" font-size="12.5" fill="#111" text-anchor="middle">Load Balancer :80</text>
+
+  <path d="M150 146 H200" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <!-- ECS Fargate outer box -->
+  <rect x="390" y="80" width="440" height="330" rx="8" fill="#fbfbfb" stroke="#888" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <text x="404" y="100" font-size="12" fill="#555">ECS Fargate task — 0.5 vCPU / 1 GB</text>
+
+  <path d="M340 146 H390" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <!-- Controller -->
+  <rect x="420" y="120" width="380" height="52" rx="6" fill="#ffffff" stroke="#444" stroke-width="1.3"/>
+  <text x="440" y="141" font-size="12.5" fill="#111">Controller</text>
+  <text x="440" y="158" font-size="10.5" fill="#777">validates input, delegates — DTOs only</text>
+
+  <path d="M610 172 V190" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <!-- Service -->
+  <rect x="420" y="192" width="380" height="52" rx="6" fill="#ffffff" stroke="#2f7d3c" stroke-width="1.6"/>
+  <text x="440" y="213" font-size="12.5" fill="#111">Service</text>
+  <text x="440" y="230" font-size="10.5" fill="#2f7d3c">business rules — retry loop lives here (below)</text>
+
+  <path d="M610 244 V262" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <!-- Repository -->
+  <rect x="420" y="264" width="380" height="52" rx="6" fill="#ffffff" stroke="#444" stroke-width="1.3"/>
+  <text x="440" y="285" font-size="12.5" fill="#111">Repository</text>
+  <text x="440" y="302" font-size="10.5" fill="#777">Spring Data JPA</text>
+
+  <!-- Retry detail callout -->
+  <rect x="420" y="336" width="380" height="62" rx="6" fill="#f3faf4" stroke="#2f7d3c" stroke-width="1.2"/>
+  <text x="440" y="356" font-size="11" font-weight="600" fill="#1f5c29">TransferExecutor (@Transactional, one attempt)</text>
+  <text x="440" y="373" font-size="11" fill="#1f5c29">called via proxy from TransferService's retry loop —</text>
+  <text x="440" y="389" font-size="11" fill="#1f5c29">7 attempts max, full-jitter backoff (25ms base, 400ms cap)</text>
+
+  <path d="M610 316 V336" stroke="#2f7d3c" stroke-width="1.3" marker-end="url(#arrowAccent)"/>
+
+  <!-- RDS -->
+  <rect x="900" y="264" width="140" height="52" rx="6" fill="#f7f7f7" stroke="#444" stroke-width="1.3"/>
+  <text x="970" y="285" font-size="12" fill="#111" text-anchor="middle">RDS</text>
+  <text x="970" y="300" font-size="10.5" fill="#666" text-anchor="middle">PostgreSQL 16</text>
+
+  <path d="M800 290 H900" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+  <text x="850" y="278" font-size="9.5" fill="#888" text-anchor="middle">private, SG-restricted</text>
+
+  <!-- CI/CD strip -->
+  <rect x="30" y="470" width="1020" height="130" rx="8" fill="#fbfbfb" stroke="#888" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <text x="46" y="492" font-size="12" fill="#555">GitHub Actions — on push to main</text>
+
+  <rect x="46" y="510" width="150" height="56" rx="6" fill="#f7f7f7" stroke="#444" stroke-width="1.3"/>
+  <text x="121" y="534" font-size="12" fill="#111" text-anchor="middle">Test suite</text>
+  <text x="121" y="550" font-size="10" fill="#666" text-anchor="middle">145 tests, Testcontainers</text>
+
+  <path d="M196 538 H246" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <rect x="248" y="510" width="150" height="56" rx="6" fill="#f7f7f7" stroke="#444" stroke-width="1.3"/>
+  <text x="323" y="534" font-size="12" fill="#111" text-anchor="middle">Build &amp; push</text>
+  <text x="323" y="550" font-size="10" fill="#666" text-anchor="middle">image → ECR</text>
+
+  <path d="M398 538 H448" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <rect x="450" y="510" width="190" height="56" rx="6" fill="#f7f7f7" stroke="#444" stroke-width="1.3"/>
+  <text x="545" y="534" font-size="12" fill="#111" text-anchor="middle">Auth: GitHub OIDC</text>
+  <text x="545" y="550" font-size="10" fill="#666" text-anchor="middle">no stored AWS keys</text>
+
+  <path d="M640 538 H690" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <rect x="692" y="510" width="220" height="56" rx="6" fill="#f7f7f7" stroke="#444" stroke-width="1.3"/>
+  <text x="802" y="534" font-size="12" fill="#111" text-anchor="middle">Rolling deploy</text>
+  <text x="802" y="550" font-size="10" fill="#666" text-anchor="middle">health-checked ECS service update</text>
+
+  <path d="M802 510 V412" stroke="#444" stroke-width="1.3" marker-end="url(#arrow)"/>
+
+  <text x="30" y="628" font-size="10.5" fill="#999">Full run — test, build, push, health-checked deploy — under 7 minutes end to end.</text>
+</svg>

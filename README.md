@@ -5,6 +5,7 @@
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.3-6DB33F?logo=springboot&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-145%20passing-brightgreen)
+![Coverage](https://img.shields.io/badge/line%20coverage-96%25-brightgreen)
 
 A banking ledger REST API in Spring Boot: accounts, deposits and withdrawals, and
 account-to-account transfers that are atomic and safe under concurrent load.
@@ -17,8 +18,9 @@ provably cannot corrupt a balance, and there are automated tests that fail if th
 - **Concurrency correctness, proven, not assumed.** Optimistic locking with a bounded, jittered
   retry loop prevents lost updates on concurrent transfers — verified by tests that were confirmed
   to **fail** when the locking is removed. See [Concurrency safety](#concurrency-safety).
-- **145 automated tests** — unit, Testcontainers-backed integration, and a dedicated concurrency
-  suite that hammers a single account with real thread contention, not mocked-away race conditions.
+- **145 automated tests, 96% line coverage** — unit, Testcontainers-backed integration, and a
+  dedicated concurrency suite that hammers a single account with real thread contention, not
+  mocked-away race conditions.
 - **Measured, not estimated, performance.** [`scripts/loadtest.mjs`](scripts/loadtest.mjs) drives
   the live API and reports real throughput and latency under contention. See [Performance](#performance).
 - **Idempotency keys with request fingerprinting** on every money-moving endpoint, backed by a
@@ -111,6 +113,8 @@ HTTP  →  Controller  →  Service  →  Repository  →  PostgreSQL
        DTOs only     business rules
 ```
 
+![Request path through Controller, Service, and Repository layers to PostgreSQL, and the deployment path from GitHub Actions through OIDC to the ECS Fargate task behind an ALB, reaching RDS](.github/assets/architecture.svg)
+
 - **Controllers** validate input and delegate. No business logic.
 - **Services** hold the rules. JPA entities never cross the controller boundary — every response
   is a DTO record.
@@ -202,11 +206,13 @@ contention on a single hot account, pessimistic locking would be the better choi
 
 ## Tests
 
-145 automated tests, 0 failures, 0 errors:
+145 automated tests, 0 failures, 0 errors, 96% line coverage (93% branch) via JaCoco:
 
 ```bash
 ./mvnw test
 ```
+
+`target/site/jacoco/index.html` has the full per-package breakdown after a run.
 
 - **Unit** (Mockito, no database): balance rules, transfer validation, and the retry policy —
   including that business exceptions are *not* retried.
