@@ -53,6 +53,7 @@ reproduces the identical API locally in under a minute.
 - [Trying it](#trying-it)
 - [Architecture](#architecture)
 - [Concurrency safety](#concurrency-safety)
+- [Multi-instance concurrency](#multi-instance-concurrency)
 - [Observability](#observability)
 - [Tests](#tests)
 - [Performance](#performance)
@@ -204,6 +205,26 @@ which hurts throughput under contention. Optimistic locking trades that for retr
 small chance of a client-visible `409` under heavy single-account contention. For a ledger where
 contention on any one account is normally low, that is the better trade. Under sustained
 contention on a single hot account, pessimistic locking would be the better choice.
+
+## Multi-instance concurrency
+
+`TransferConcurrencyTest` proves the locking holds across threads in one JVM. That's not
+the same claim as correctness across separate **processes**, which is what actually
+happens once this is scaled out — a real deployment doesn't guarantee two concurrent
+requests land on the same instance.
+
+```bash
+docker compose --profile multi up -d --build postgres app1 app2 app3
+node scripts/multiinstance-test.mjs
+```
+
+[`scripts/multiinstance-test.mjs`](scripts/multiinstance-test.mjs) runs the same contended
+scenarios `TransferConcurrencyTest` runs in-JVM — 20-way contention on one account, and 20
+concurrent overdraft attempts against a balance that only covers 5 — but round-robins each
+request across three independently-running instances over HTTP, then reconciles balances
+from the transaction log exactly as the JUnit test does. This has to be a script rather
+than a JUnit test: `@SpringBootTest` starts one application per test JVM, so proving
+cross-process correctness needs actually-separate running processes.
 
 ## Observability
 
