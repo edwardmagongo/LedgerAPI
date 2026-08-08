@@ -4,6 +4,7 @@ import com.edwardmagongo.ledgerapi.common.ConflictRetry;
 import com.edwardmagongo.ledgerapi.common.InsufficientFundsException;
 import com.edwardmagongo.ledgerapi.common.WriteConflictException;
 import com.edwardmagongo.ledgerapi.common.idempotency.IdempotencyService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import com.edwardmagongo.ledgerapi.transfer.dto.TransferRequest;
 import com.edwardmagongo.ledgerapi.transfer.dto.TransferResponse;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,7 @@ class TransferServiceTest {
     @Mock IdempotencyService idempotencyService;
 
     // The real ConflictRetry is used, not a mock: the retry behaviour is exactly what is under test.
-    private final ConflictRetry conflictRetry = new ConflictRetry();
+    private final ConflictRetry conflictRetry = new ConflictRetry(new SimpleMeterRegistry());
 
     private final UUID userId = UUID.randomUUID();
     private final TransferRequest request =

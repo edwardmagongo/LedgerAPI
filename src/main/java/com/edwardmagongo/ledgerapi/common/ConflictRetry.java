@@ -1,5 +1,8 @@
 package com.edwardmagongo.ledgerapi.common;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
@@ -26,15 +29,42 @@ public class ConflictRetry {
     private static final long BASE_BACKOFF_MILLIS = 25;
     private static final long MAX_BACKOFF_MILLIS = 400;
 
+    // These fire for every conflict-guarded operation - transfers, deposits, and withdrawals all
+    // go through this class - not transfers alone, despite the metric name.
+    private final Counter retriedCounter;
+    private final Counter exhaustedCounter;
+    private final Timer operationTimer;
+
+    public ConflictRetry(MeterRegistry registry) {
+        this.retriedCounter = Counter.builder("ledger.transfer.retry.count")
+                .tag("outcome", "retried")
+                .description("Optimistic-lock or deadlock conflicts that triggered a retry")
+                .register(registry);
+        this.exhaustedCounter = Counter.builder("ledger.transfer.retry.count")
+                .tag("outcome", "exhausted")
+                .description("Conflicts that exhausted all retry attempts")
+                .register(registry);
+        this.operationTimer = Timer.builder("ledger.transfer.duration")
+                .description("End-to-end duration of a conflict-guarded operation, including any retries")
+                .publishPercentileHistogram()
+                .register(registry);
+    }
+
     public <T> T execute(Supplier<T> operation) {
+        Timer.Sample sample = Timer.start();
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
-                return operation.get();
+                T result = operation.get();
+                sample.stop(operationTimer);
+                return result;
             } catch (ObjectOptimisticLockingFailureException | CannotAcquireLockException ex) {
                 if (attempt == MAX_ATTEMPTS) {
+                    exhaustedCounter.increment();
+                    sample.stop(operationTimer);
                     log.warn("Write conflict persisted after {} attempts", MAX_ATTEMPTS);
                     throw new WriteConflictException();
                 }
+                retriedCounter.increment();
                 log.debug("Write conflict on attempt {}, retrying", attempt);
                 backoff(attempt);
             }
