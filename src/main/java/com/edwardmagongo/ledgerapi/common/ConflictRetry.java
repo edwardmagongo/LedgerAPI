@@ -52,24 +52,25 @@ public class ConflictRetry {
 
     public <T> T execute(Supplier<T> operation) {
         Timer.Sample sample = Timer.start();
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            try {
-                T result = operation.get();
-                sample.stop(operationTimer);
-                return result;
-            } catch (ObjectOptimisticLockingFailureException | CannotAcquireLockException ex) {
-                if (attempt == MAX_ATTEMPTS) {
-                    exhaustedCounter.increment();
-                    sample.stop(operationTimer);
-                    log.warn("Write conflict persisted after {} attempts", MAX_ATTEMPTS);
-                    throw new WriteConflictException();
+        try {
+            for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                try {
+                    return operation.get();
+                } catch (ObjectOptimisticLockingFailureException | CannotAcquireLockException ex) {
+                    if (attempt == MAX_ATTEMPTS) {
+                        exhaustedCounter.increment();
+                        log.warn("Write conflict persisted after {} attempts", MAX_ATTEMPTS);
+                        throw new WriteConflictException();
+                    }
+                    retriedCounter.increment();
+                    log.debug("Write conflict on attempt {}, retrying", attempt);
+                    backoff(attempt);
                 }
-                retriedCounter.increment();
-                log.debug("Write conflict on attempt {}, retrying", attempt);
-                backoff(attempt);
             }
+            throw new IllegalStateException("unreachable");
+        } finally {
+            sample.stop(operationTimer);
         }
-        throw new IllegalStateException("unreachable");
     }
 
     // Full jitter: sleep uniformly at random within [0, cap), where cap grows exponentially per
