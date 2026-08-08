@@ -29,6 +29,10 @@ provably cannot corrupt a balance, and there are automated tests that fail if th
 - **Infrastructure as code, deployed for real.** Terraform provisions the full AWS stack (ECS
   Fargate, RDS, ALB, IAM, OIDC federation); GitHub Actions tests, builds, and deploys on every push
   to `main`, authenticating with zero long-lived AWS credentials. See [Deployment](#deployment).
+- **Proven across processes, not just threads.** The concurrency guarantee above holds when
+  concurrent transfers land on different application instances, not only different threads in one
+  JVM — verified by a script, and by a chaos test that kills an instance mid-transfer. See
+  [Multi-instance concurrency](#multi-instance-concurrency) and [Chaos testing](#chaos-testing).
 
 ## Live Demo
 
@@ -465,12 +469,16 @@ Design notes worth reading before the code:
   identity's trust. The IAM trust policy in [`infra/github-oidc.tf`](infra/github-oidc.tf) matches
   the ID form — diagnosed from the actual `AssumeRoleWithWebIdentity` denial in CloudTrail rather
   than guessed from documentation.
-- **Single-AZ, one task, HTTP only.** Deliberate: this is sized to be stood up for a demo and torn
-  down in one command, not to be highly available. Multi-AZ RDS, an ACM certificate with an HTTPS
-  listener, and auto-scaling are each a small, well-defined addition.
+- **Single-AZ, HTTP only.** Deliberate: this is sized to be stood up for a demo and torn down in
+  one command, not to be highly available. Multi-AZ RDS and an ACM certificate with an HTTPS
+  listener are each a small, well-defined addition. Task count is not one of them anymore — see
+  below.
 
-Roughly $55/month while running continuously — see [`infra/README.md`](infra/README.md) for the
-full bootstrap runbook, including the exact `terraform apply` / `terraform destroy` sequence.
+The service normally runs 1 task (~$55/month while running continuously); `infra/scale.sh 3`
+scales it to match the [multi-instance concurrency](#multi-instance-concurrency) and
+[chaos testing](#chaos-testing) sections' local setup, for real, on the live ALB. Scale back down
+with `infra/scale.sh 1`. See [`infra/README.md`](infra/README.md) for the full bootstrap runbook
+and the "Scaling the service" section for why this is a script and not a Terraform variable.
 
 ## License
 
