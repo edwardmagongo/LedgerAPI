@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: ledger-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["api:8080"]
+        labels:
+          instance_name: single
+      - targets: ["app1:8080"]
+        labels:
+          instance_name: app1
+      - targets: ["app2:8080"]
+        labels:
+          instance_name: app2
+      - targets: ["app3:8080"]
+        labels:
+          instance_name: app3
