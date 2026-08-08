@@ -54,6 +54,7 @@ reproduces the identical API locally in under a minute.
 - [Architecture](#architecture)
 - [Concurrency safety](#concurrency-safety)
 - [Multi-instance concurrency](#multi-instance-concurrency)
+- [Chaos testing](#chaos-testing)
 - [Observability](#observability)
 - [Tests](#tests)
 - [Performance](#performance)
@@ -225,6 +226,29 @@ request across three independently-running instances over HTTP, then reconciles 
 from the transaction log exactly as the JUnit test does. This has to be a script rather
 than a JUnit test: `@SpringBootTest` starts one application per test JVM, so proving
 cross-process correctness needs actually-separate running processes.
+
+## Chaos testing
+
+```bash
+docker compose --profile multi up -d --build postgres app1 app2 app3
+node scripts/chaos-test.mjs
+```
+
+[`scripts/chaos-test.mjs`](scripts/chaos-test.mjs) fires concurrent transfers across all
+three instances and, partway through, kills one of them (`docker kill`) — then reconciles
+balances afterward.
+
+**What this proves:** the ledger never ends up in a corrupted state — the destination
+balance always matches exactly `$5.00 × (number of successful transfers)`, and every
+account's transaction log reconciles with its stored balance, whether or not the kill
+lands mid-request.
+
+**What this does not prove:** that no individual request ever fails. A request being
+processed on the killed instance at the exact moment it dies has no way to complete —
+there's no distributed transaction between the load balancer and the app. That's expected
+and is not a bug: the client sees a clear connection failure rather than an ambiguous
+outcome, and can safely retry using the [idempotency key](#idempotency) it should already
+be sending for a money-moving request.
 
 ## Observability
 
