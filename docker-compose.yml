@@ -28,6 +28,53 @@ services:
     ports:
       - "8080:8080"
 
+  app1:
+    build: .
+    container_name: ledger-app1
+    profiles: ["multi"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger
+      SPRING_DATASOURCE_USERNAME: ledger
+      SPRING_DATASOURCE_PASSWORD: ledger
+      # Must match app2 and app3 exactly: a token issued by one instance has to validate on
+      # the others, since the whole point is that any instance can serve any request.
+      LEDGER_JWT_SECRET: local-compose-secret-change-me-0123456789abcdef0123456789
+    ports:
+      - "8081:8080"
+
+  app2:
+    build: .
+    container_name: ledger-app2
+    profiles: ["multi"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger
+      SPRING_DATASOURCE_USERNAME: ledger
+      SPRING_DATASOURCE_PASSWORD: ledger
+      LEDGER_JWT_SECRET: local-compose-secret-change-me-0123456789abcdef0123456789
+    ports:
+      - "8082:8080"
+
+  app3:
+    build: .
+    container_name: ledger-app3
+    profiles: ["multi"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger
+      SPRING_DATASOURCE_USERNAME: ledger
+      SPRING_DATASOURCE_PASSWORD: ledger
+      LEDGER_JWT_SECRET: local-compose-secret-change-me-0123456789abcdef0123456789
+    ports:
+      - "8083:8080"
+
   prometheus:
     image: prom/prometheus:v2.53.0
     volumes:
