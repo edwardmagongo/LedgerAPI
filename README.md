@@ -53,6 +53,7 @@ reproduces the identical API locally in under a minute.
 - [Trying it](#trying-it)
 - [Architecture](#architecture)
 - [Concurrency safety](#concurrency-safety)
+- [Observability](#observability)
 - [Tests](#tests)
 - [Performance](#performance)
 - [API](#api)
@@ -203,6 +204,28 @@ which hurts throughput under contention. Optimistic locking trades that for retr
 small chance of a client-visible `409` under heavy single-account contention. For a ledger where
 contention on any one account is normally low, that is the better trade. Under sustained
 contention on a single hot account, pessimistic locking would be the better choice.
+
+## Observability
+
+`/actuator/prometheus` exposes Micrometer metrics, including three tied directly to the
+concurrency story above:
+
+| Metric | Type | What it shows |
+|---|---|---|
+| `ledger.transfer.retry.count{outcome="retried"}` | counter | Optimistic-lock/deadlock conflicts that triggered a retry |
+| `ledger.transfer.retry.count{outcome="exhausted"}` | counter | Conflicts that exhausted all 7 attempts and surfaced as a `409` |
+| `ledger.idempotency.replay.count` | counter | Requests served from a stored response instead of executed |
+| `ledger.transfer.duration` | histogram | End-to-end duration of a conflict-guarded operation, including retries |
+
+```bash
+docker compose up -d --build
+```
+
+brings up Prometheus (`localhost:9090`) and Grafana (`localhost:3000`, anonymous admin
+access for local dev) alongside the API, with a "LedgerAPI" dashboard already provisioned
+— no manual setup. Run [`scripts/loadtest.mjs`](scripts/loadtest.mjs) or
+[`scripts/multiinstance-test.mjs`](scripts/multiinstance-test.mjs) against it and watch the
+retry-rate panel move in real time as contention happens.
 
 ## Tests
 
