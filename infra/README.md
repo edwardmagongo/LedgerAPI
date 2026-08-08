@@ -97,6 +97,21 @@ Terraform owns the infrastructure. **The pipeline owns which image version is ru
 service carries `lifecycle { ignore_changes = [task_definition, desired_count] }`, so Terraform will
 not revert a deployment made by CI. Terraform's task definition is only ever the bootstrap revision.
 
+## Scaling the service
+
+```bash
+infra/scale.sh 3
+```
+
+Same reasoning as "Who owns what" above: `desired_count` is in the service's
+`ignore_changes` list, so editing the number in `ecs.tf` and running `terraform apply`
+would have **no effect** — Terraform is instructed to ignore drift on that field. Scaling
+happens the same way an image deploy does: outside Terraform, via the AWS CLI.
+
+`infra/scale.sh <count>` reads the cluster and service names from Terraform outputs, calls
+`aws ecs update-service --desired-count`, and waits for the service to stabilize before
+returning. Scale back down with `infra/scale.sh 1`.
+
 ## Tearing it down
 
 ```bash
