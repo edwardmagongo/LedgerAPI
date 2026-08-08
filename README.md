@@ -425,6 +425,12 @@ the outcome through that key.
   [Idempotency](#idempotency). Automatic key expiry is not.
 - Out of scope: refresh tokens, login rate limiting, overdrafts, and event-sourced double-entry
   accounting.
+- **`/actuator/prometheus` is unauthenticated by design** — same as `/actuator/health`, which the
+  ALB health check already relies on being unauthenticated, and it lets a local Prometheus scrape
+  the API without needing bearer-token config it doesn't have. It exposes JVM/pool internals and
+  the `ledger.*` business counters, but no credentials or PII. A production deployment would either
+  move actuator to a separate `management.server.port` the ALB doesn't forward, or add scrape
+  authentication.
 
 ## Configuration
 
