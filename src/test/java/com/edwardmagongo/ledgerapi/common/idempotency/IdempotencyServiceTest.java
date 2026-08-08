@@ -5,10 +5,10 @@ import com.edwardmagongo.ledgerapi.common.ConflictRetry;
 import com.edwardmagongo.ledgerapi.common.IdempotencyKeyInFlightException;
 import com.edwardmagongo.ledgerapi.common.IdempotencyKeyReusedException;
 import com.edwardmagongo.ledgerapi.common.InsufficientFundsException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -32,7 +32,8 @@ class IdempotencyServiceTest {
     @Mock IdempotentOperationExecutor executor;
     @Mock ConflictRetry conflictRetry;
 
-    @InjectMocks IdempotencyService service;
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+    private IdempotencyService service;
 
     private UUID userId;
     private UUID claimId;
@@ -41,6 +42,7 @@ class IdempotencyServiceTest {
     void setUp() {
         userId = UUID.randomUUID();
         claimId = UUID.randomUUID();
+        service = new IdempotencyService(claims, executor, conflictRetry, meterRegistry);
     }
 
     /** Makes ConflictRetry transparent so the supplier runs inline. */
@@ -147,5 +149,18 @@ class IdempotencyServiceTest {
                 .isInstanceOf(InsufficientFundsException.class);
 
         verify(claims).release(claimId);
+    }
+
+    @Test
+    void aSuccessfulReplayIncrementsTheReplayMetric() {
+        when(claims.claim(userId, "k", IdempotentOperation.TRANSFER, "fp"))
+                .thenReturn(Optional.empty());
+        when(claims.find(userId, "k"))
+                .thenReturn(Optional.of(completedKey("fp", 201, "{\"replayed\":true}")));
+
+        service.execute(userId, "k", IdempotentOperation.TRANSFER, "fp", () -> "must not run");
+
+        assertThat(meterRegistry.get("ledger.idempotency.replay.count").counter().count())
+                .isEqualTo(1.0);
     }
 }

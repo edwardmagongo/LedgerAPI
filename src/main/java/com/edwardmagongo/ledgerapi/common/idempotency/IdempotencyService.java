@@ -4,6 +4,8 @@ import com.edwardmagongo.ledgerapi.common.BlankIdempotencyKeyException;
 import com.edwardmagongo.ledgerapi.common.ConflictRetry;
 import com.edwardmagongo.ledgerapi.common.IdempotencyKeyInFlightException;
 import com.edwardmagongo.ledgerapi.common.IdempotencyKeyReusedException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -30,12 +32,16 @@ public class IdempotencyService {
     private final IdempotencyClaims claims;
     private final IdempotentOperationExecutor executor;
     private final ConflictRetry conflictRetry;
+    private final Counter replayCounter;
 
     public IdempotencyService(IdempotencyClaims claims, IdempotentOperationExecutor executor,
-                              ConflictRetry conflictRetry) {
+                              ConflictRetry conflictRetry, MeterRegistry registry) {
         this.claims = claims;
         this.executor = executor;
         this.conflictRetry = conflictRetry;
+        this.replayCounter = Counter.builder("ledger.idempotency.replay.count")
+                .description("Requests served from a stored idempotent response instead of executed")
+                .register(registry);
     }
 
     public <T> IdempotentOutcome<T> execute(UUID userId, String key, IdempotentOperation operation,
@@ -74,6 +80,7 @@ public class IdempotencyService {
         if (!existing.isCompleted()) {
             throw new IdempotencyKeyInFlightException();
         }
+        replayCounter.increment();
         return new IdempotentOutcome.Replayed<>(existing.getResponseStatus(), existing.getResponseBody());
     }
 }
