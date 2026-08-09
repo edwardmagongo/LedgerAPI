@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.3-6DB33F?logo=springboot&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-149%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-150%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/line%20coverage-97%25-brightgreen)
 
 A banking ledger REST API in Spring Boot: accounts, deposits and withdrawals, and
@@ -18,7 +18,7 @@ provably cannot corrupt a balance, and there are automated tests that fail if th
 - **Concurrency correctness, proven, not assumed.** Optimistic locking with a bounded, jittered
   retry loop prevents lost updates on concurrent transfers — verified by tests that were confirmed
   to **fail** when the locking is removed. See [Concurrency safety](#concurrency-safety).
-- **149 automated tests, 97% line coverage** — unit, Testcontainers-backed integration, and a
+- **150 automated tests, 97% line coverage** — unit, Testcontainers-backed integration, and a
   dedicated concurrency suite that hammers a single account with real thread contention, not
   mocked-away race conditions.
 - **Measured, not estimated, performance.** [`scripts/loadtest.mjs`](scripts/loadtest.mjs) drives
@@ -219,7 +219,7 @@ happens once this is scaled out — a real deployment doesn't guarantee two conc
 requests land on the same instance.
 
 ```bash
-docker compose --profile multi up -d --build postgres app1 app2 app3
+docker compose --profile multi up -d --build
 node scripts/multiinstance-test.mjs
 ```
 
@@ -234,7 +234,7 @@ cross-process correctness needs actually-separate running processes.
 ## Chaos testing
 
 ```bash
-docker compose --profile multi up -d --build postgres app1 app2 app3
+docker compose --profile multi up -d --build
 node scripts/chaos-test.mjs
 ```
 
@@ -257,7 +257,7 @@ be sending for a money-moving request.
 ## Observability
 
 `/actuator/prometheus` exposes Micrometer metrics, including three tied directly to the
-concurrency story above:
+concurrency story above (the retry counter split by outcome accounts for the fourth row):
 
 | Metric | Type | What it shows |
 |---|---|---|
@@ -276,9 +276,11 @@ access for local dev) alongside the API, with a "LedgerAPI" dashboard already pr
 [`scripts/multiinstance-test.mjs`](scripts/multiinstance-test.mjs) against it and watch the
 retry-rate panel move in real time as contention happens.
 
+![Grafana dashboard showing a real spike in the conflict-retry rate and p50/p95/p99 latency captured during a multiinstance-test.mjs run](.github/assets/grafana-dashboard.png)
+
 ## Tests
 
-149 automated tests, 0 failures, 0 errors, 97% line coverage (93% branch) via JaCoco:
+150 automated tests, 0 failures, 0 errors, 97% line coverage (93% branch) via JaCoco:
 
 ```bash
 ./mvnw test
@@ -482,9 +484,11 @@ Design notes worth reading before the code:
 
 The service normally runs 1 task (~$55/month while running continuously); `infra/scale.sh 3`
 scales it to match the [multi-instance concurrency](#multi-instance-concurrency) and
-[chaos testing](#chaos-testing) sections' local setup, for real, on the live ALB. Scale back down
-with `infra/scale.sh 1`. See [`infra/README.md`](infra/README.md) for the full bootstrap runbook
-and the "Scaling the service" section for why this is a script and not a Terraform variable.
+[chaos testing](#chaos-testing) sections' local setup, for real, on the live ALB — the compute
+portion of that cost roughly triples at 3 tasks (RDS and the ALB itself don't scale with task
+count), so treat $55/month as the 1-task baseline, not the ceiling. Scale back down with
+`infra/scale.sh 1`. See [`infra/README.md`](infra/README.md) for the full bootstrap runbook and
+the "Scaling the service" section for why this is a script and not a Terraform variable.
 
 ## License
 
