@@ -257,7 +257,8 @@ be sending for a money-moving request.
 ## Observability
 
 `/actuator/prometheus` exposes Micrometer metrics, including three tied directly to the
-concurrency story above (the retry counter split by outcome accounts for the fourth row):
+concurrency story above (the retry counter appears twice, split by outcome — hence four rows
+for three metrics):
 
 | Metric | Type | What it shows |
 |---|---|---|
