@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.3-6DB33F?logo=springboot&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-150%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-149%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/line%20coverage-97%25-brightgreen)
 
 A banking ledger REST API in Spring Boot: accounts, deposits and withdrawals, and
@@ -18,7 +18,7 @@ provably cannot corrupt a balance, and there are automated tests that fail if th
 - **Concurrency correctness, proven, not assumed.** Optimistic locking with a bounded, jittered
   retry loop prevents lost updates on concurrent transfers — verified by tests that were confirmed
   to **fail** when the locking is removed. See [Concurrency safety](#concurrency-safety).
-- **150 automated tests, 97% line coverage** — unit, Testcontainers-backed integration, and a
+- **149 automated tests, 97% line coverage** — unit, Testcontainers-backed integration, and a
   dedicated concurrency suite that hammers a single account with real thread contention, not
   mocked-away race conditions.
 - **Measured, not estimated, performance.** [`scripts/loadtest.mjs`](scripts/loadtest.mjs) drives
@@ -281,7 +281,7 @@ retry-rate panel move in real time as contention happens.
 
 ## Tests
 
-150 automated tests, 0 failures, 0 errors, 97% line coverage (93% branch) via JaCoco:
+149 automated tests, 0 failures, 0 errors, 97% line coverage (93% branch) via JaCoco:
 
 ```bash
 ./mvnw test
