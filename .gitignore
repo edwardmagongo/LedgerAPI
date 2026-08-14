@@ -14,6 +14,8 @@ target/
 *.tfvars
 *.tfvars.json
 !*.example.tfvars
+tfplan
+tfdestroy
 crash.log
 
 # Local git worktrees (superpowers:using-git-worktrees)
